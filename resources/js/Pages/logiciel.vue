@@ -1,8 +1,8 @@
 <script setup>
 import { onMounted, ref, reactive } from '@vue/runtime-core';
 import Main from '../Layouts/main.vue';
-import Navigation from '../Components/navigation.vue';
-import EditorTools from '../Components/editor_tools.vue';
+import Navigation from '../Components/NavigationLinks.vue';
+import VideoActionButtons from '../Components/VideoActionButtons.vue';
 import { editingTools, navTitles } from '../Functions/globalTools.vue';
 
 /**************************************    DATA   ***************************************/
@@ -120,7 +120,7 @@ const updateIndicator = () => {
 </script>
 
 <template>
-    <Navigation :video_title="navTitles.video" :timeline_title="navTitles.timeline" :settings="navTitles.settings"/>
+    <Navigation :video-title="navTitles.video" :timeline-title="navTitles.timeline" :settings="navTitles.settings"/>
     <Main>
         <template #filesOrganisation>
             <ul class="list-none w-full h-screen overflow-y-scroll py-10 px-2">
@@ -137,7 +137,7 @@ const updateIndicator = () => {
         <template #display>
             <div class="flex flex-col">
                 <video class="mt-10 h-[25rem] w-full shadow-lg shadow-blue-500/50" ref="timeline"></video>
-                <EditorTools @backward-event="backWard" @play-video="togglePlayVideo" @forward-event="forWard" @replay-video="replayVideo" />
+                <VideoActionButtons @backward-event="backWard" @play-video="togglePlayVideo" @forward-event="forWard" @replay-video="replayVideo" />
                 <div class="mt-16">
                     <h4 class="title font-mono" v-if="timelineIsActive">Timeline</h4>
                     <div class="cursor-grabbing flex flew-row max-h-32 snap-x overflow-x-scroll hover:resize whitespace-nowrap rounded" ref="canvasContainer">
