@@ -1,38 +1,50 @@
 <script setup>
-import { onMounted, ref, reactive } from '@vue/runtime-core';
-import Main from '../Layouts/main.vue';
-import Navigation from '../Components/NavigationLinks.vue';
-import VideoActionButtons from '../Components/VideoActionButtons.vue';
-import { editingTools, navTitles } from '../Functions/globalTools.vue';
+import { onMounted, ref, computed } from '@vue/runtime-core'
+import Main from '../Layouts/main.vue'
+import Navigation from '../Components/NavigationLinks.vue'
+import VideoActionButtons from '../Components/VideoActionButtons.vue'
+import { editingTools, navTitles } from '../Functions/globalTools.vue'
+import { useForm, router } from '@inertiajs/vue3'
+import SignIn from '../Modals/SignIn.vue'
+import waitingVideoAnimation from '../../../public/storage/animations/C8B4Oz7AA0.json'
 
 /**************************************    DATA   ***************************************/
 const app = document.getElementById('app');
+const props = defineProps({
+    videos: Object,
+    errors: Object
+});
+
+// Video
 const timeline = ref(null);
 const timelineIsActive = ref(false);
 const videoInput = ref(null);
+const timelineUrl = computed(() => {
+    return timeline.value ? timeline.value.src : ''
+});
 
 // Canvas
 const canvasContainer = ref(null);
 const canvasImages = ref([]);
 
-let videos = ref('');
+// Auth Forms
+const showSignInForm = ref(false);
 
 /**************************************    LIFECYCLE   ***************************************/
 onMounted(async () => {
-    videos.value = await fetch('https://jsonplaceholder.typicode.com/photos')
-                         .then(response => response.json());
-    
     // Add custom style
-    app.classList.add('bg-neutral-800');
+    app.classList.add('bg-neutral-800', 'relative');
     app.style.color = '#ffffff';
 });
 
 /**************************************    METHOD   ***************************************/
 // Show video in timeline method
 const showVideo = (src) => {
-    timeline.value.src = src;
+    const prefix = '/upload/';
+    timeline.value.src = prefix + src;
     timeline.value.style.border = 'none';
 };
+
 const openFileDialog = () => {
     videoInput.value.click();
 }
@@ -46,13 +58,20 @@ const uploadVideo = () => {
     }, false);
 
     if (file) {
-        reader.readAsDataURL(file);
-    }
+        timelineIsActive.value = true;
 
-    timeline.value.src = URL.createObjectURL(file);
-    timeline.value.addEventListener('loadeddata', () => {
-        setInterval(captureImage, 1000);
-      });
+        reader.readAsDataURL(file);
+        timeline.value.src = URL.createObjectURL(file);
+        timeline.value.addEventListener('loadeddata', () => {
+            setInterval(captureImage, 1000);
+        });
+
+        router.post('/upload-video', {
+            preserveScroll: true,
+            _method: 'POST',
+            video: file
+        })
+    }
 }
 
 const togglePlayVideo = (event) => {
@@ -80,20 +99,20 @@ const replayVideo = () => {
 }
 
 const captureImage = () => {
-    timelineIsActive.value = true;
+    if(timelineIsActive.value == true) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 100;
+        canvas.getContext('2d').drawImage(timeline.value, 0, 0, timeline.value.videoWidth, timeline.value.videoHeight, 0, 0, 150, 100);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 150;
-    canvas.height = 100;
-    canvas.getContext('2d').drawImage(timeline.value, 0, 0, timeline.value.videoWidth, timeline.value.videoHeight, 0, 0, 150, 100);
-
-    canvasImages.value.push(canvas);
-    const index = canvasImages.value.length - 1;
-    canvas.onclick = () => {
-        seekToTime(index);
-    };
-    canvasContainer.value.appendChild(canvas);
-    canvasContainer.value.scrollLeft = canvasContainer.value.scrollWidth;
+        canvasImages.value.push(canvas);
+        const index = canvasImages.value.length - 1;
+        canvas.onclick = () => {
+            seekToTime(index);
+        };
+        canvasContainer.value.appendChild(canvas);
+        canvasContainer.value.scrollLeft = canvasContainer.value.scrollWidth;
+    }
 };
 
 const seekToTime = (index) => {
@@ -110,39 +129,57 @@ const seekToTime = (index) => {
     }
 };
 
-const updateIndicator = () => {
-      scrollIndicator.value.style.left =
-        (timeline.value.currentTime / timeline.value.duration) *
-        canvasContainer.value.scrollWidth +
-        'px'
-    }
+const deleteVideo = (video) => {
+    if(confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
+        router.post('/delete-video', {
+            _method: 'DELETE',
+            video: video
+        });
 
+        timelineIsActive.value = false;
+        timeline.value.src = "";
+    }
+};
 </script>
 
 <template>
     <Navigation :video-title="navTitles.video" :timeline-title="navTitles.timeline" :settings="navTitles.settings"/>
     <Main>
         <template #filesOrganisation>
-            <ul class="list-none w-full h-screen overflow-y-scroll py-10 px-2">
-                <li class="grid grid-cols-2 gap-[0.40rem]">
-                    <img v-for="video in videos.slice(0, 20)" :key="video.id" :src="video.url" @click="showVideo(video.url)"
-                         class="cursor-pointer hover:scale-125 rounded h-28 w-full" >
-                </li>
-                <button @click="openFileDialog" class="absolute bottom-2 left-[3.5rem] bg-indigo-500 shadow-lg shadow-cyan-500/50 font-bold py-2 px-4 rounded-l" id="uploadVideo">
-                    Ajouter une vidéo
-                </button>
+            <div class="h-screen overflow-y-scroll">
+                <Transition>
+                    <div class="py-10 px-2" v-if="props.videos.length == 0">
+                        <lottie-player class="bg-transparent w-full h-full mx-auto" :src="waitingVideoAnimation" mode="bounce" speed="1" loop  autoplay></lottie-player>
+                        <p class="text-center w-full">Vos vidéos s'afficheront ici...</p>
+                    </div>
+                </Transition>
+                <ul class="list-none w-full h-auto py-10 px-2 leading-3 grid grid-cols-2 gap-[0.40rem]">
+                    <li class="relative" v-for="video in props.videos" :key="video.id">
+                        <video :src="'/upload/'+video.url" @click="showVideo(video.url)"
+                            class="hover:opacity-25 transition-opacity cursor-pointer rounded h-28 w-full">
+                        </video>
+                        <i class="absolute top-6 right-2 cursor-pointer hover:text-red-400 fa fa-trash" @click="deleteVideo(video)"></i>
+                    </li>
+                </ul>
+                <div class="absolute flex bottom-20 left-[4rem] items-center justify-between">
+                    <i @click="showSignInForm = !showSignInForm" class="fa fa-user rounded-full absolute right-[11.2rem] bg-indigo-500 shadow-lg shadow-cyan-500/50 font-bold py-2 px-4 cursor-pointer"></i>
+                    <button @click="openFileDialog" class="bg-indigo-500 shadow-lg shadow-cyan-500/50 font-bold py-2 px-4 rounded" id="uploadVideo">
+                        Ajouter une vidéo
+                    </button>
+                </div>
                 <input class="hidden" type="file" ref="videoInput" @change="uploadVideo"/>
-            </ul>
+            </div>
         </template>
         <template #display>
             <div class="flex flex-col">
                 <video class="mt-10 h-[25rem] w-full shadow-lg shadow-blue-500/50" ref="timeline"></video>
                 <VideoActionButtons @backward-event="backWard" @play-video="togglePlayVideo" @forward-event="forWard" @replay-video="replayVideo" />
-                <div class="mt-16">
-                    <h4 class="title font-mono" v-if="timelineIsActive">Timeline</h4>
-                    <div class="cursor-grabbing flex flew-row max-h-32 snap-x overflow-x-scroll hover:resize whitespace-nowrap rounded" ref="canvasContainer">
+                <Transition>
+                    <div class="mt-16" v-if="timelineIsActive">
+                        <h4 class="title font-mono">Timeline</h4>
+                        <div class="cursor-grabbing flex flew-row max-h-32 snap-x overflow-x-scroll hover:resize whitespace-nowrap rounded" ref="canvasContainer"></div>
                     </div>
-                </div>
+                </Transition>
             </div>
         </template>
         <template #edit>
@@ -158,6 +195,13 @@ const updateIndicator = () => {
             </div>
         </template>
     </Main>
+
+    <!-- Modals -->
+    <div v-if="showSignInForm" id="sign-in" 
+    class="fixed top-0 left-0 right-0 z-50 w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-modal md:h-full">
+        <SignIn />
+        <p @click="showSignInForm = !showSignInForm" class="text-center font-mono cursor-pointer text-xl absolute top-10 right-10 text-black p-5 py-3 border-2 rounded-full">X</p>
+    </div>
 </template>
 
 <style scoped>
@@ -165,13 +209,11 @@ canvas {
     height: 100px;
     width: 150px;
 }
-
 .canvas-container {
   overflow-x: scroll;
   white-space: nowrap;
   display: flex;
 }
-
 .scroll-indicator {
   position: absolute;
   top: 0;
