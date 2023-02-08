@@ -13,5 +13,8 @@ use Illuminate\Support\Facades\Route;
 | contains the "web" middleware group. Now create something great!
 |
 */
-
-Route::get('/', [VideoController::class, 'index'])->name('home');
+Route::controller(VideoController::class)->name('video.')->group(function () {
+    Route::get('/', 'index')->name('home');
+    Route::post('/upload-video', 'store')->name('upload');
+    Route::delete('/delete-video', 'destroy')->name('delete');
+});

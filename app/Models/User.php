@@ -41,4 +41,14 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    /**
+     * Get this user videos
+     * 
+     * @return object
+     */
+    public function videos()
+    {
+        return $this->hasMany(Video::class);
+    }
 }
